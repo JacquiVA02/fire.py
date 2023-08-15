@@ -7,6 +7,9 @@ from mesa.visualization.ModularVisualization import ModularServer
 
 from mesa.visualization.UserParam import Slider
 
+from mesa.datacollection import DataCollector
+from mesa.visualization.modules import ChartModule
+
 class Tree(Agent):
     FINE = 0
     BURNING = 1
@@ -34,9 +37,20 @@ class Forest(Model):
                     tree.condition = Tree.BURNING
                 self.grid.place_agent(tree, (x,y))
                 self.schedule.add(tree)
+                
+        self.datacollector = DataCollector({"Percent burned": lambda m: self.count_type(m, Tree.BURNED_OUT) / len(self.schedule.agents)})
+
+    @staticmethod
+    def count_type(model, condition):
+        count = 0
+        for tree in model.schedule.agents:
+            if tree.condition == condition:
+                count += 1
+        return count
 
     def step(self):
         self.schedule.step()
+        self.datacollector.collect(self)
 
 def agent_portrayal(agent):
     if agent.condition == Tree.FINE:
@@ -52,10 +66,12 @@ def agent_portrayal(agent):
 
 grid = CanvasGrid(agent_portrayal, 50, 50, 450, 450)
 
-server = ModularServer(Forest, [grid], "Forest", {
-    "density": Slider("Tree density", 0.45, 0.01, 1.0, 0.01),
-    "width":50, "height":50
-})
+chart = ChartModule([{"Label": "Percent burned", "Color": "Black"}], data_collector_name='datacollector')
+
+server = ModularServer(Forest,
+                       [grid, chart],
+                       "Forest",
+                       {"density": Slider("Tree density", 0.45, 0.01, 1.0, 0.01), "width":50, "height":50})
 
 server.port = 8522 # The default
 server.launch()
